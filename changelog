@@ -1,0 +1,94 @@
+=============================================================
+2024-11-26 Packer tutorials
+
+Learning Packer using the Hashicorp AWS
+[tutorial](https://developer.hashicorp.com/packer/tutorials/aws-get-started/aws-get-started-build-image).
+
+After building, was able to look at the image with `aws ec2 describe-images
+--owners self`.
+
+When I tried to build two instances in parallel packer errored out with
+something about a VPC not being available.  Turned out this was because I was
+trying to build one of them in a region where I didn't have a default VPC.
+
+
+=============================================================
+2024-11-26-2 Design of "better" system for bootstrapping salt
+
+What I want to do here is come up with a way to leverage packer, terraform,
+and salt to built infrastructure on AWS in a professional and robust way.
+
+- Use packer to build AMIs that have the software I need preinstalled
+- Use tags on instances to determine the role of an instance for configuration
+using salt.pillar.ec2_pillar
+https://docs.saltproject.io/en/latest/ref/pillar/all/salt.pillar.ec2_pillar.html
+- Store the salt configuration files in a private github repository, and pull
+them using proper AWS secrets
+
+What I need is:
+A base image with salt-minion installed and the ec2_pillar
+A salt server image that adds gh and salt-master, and has a startup script to
+get credentials from the secrets store and clone the repo and set up symbolic
+links
+
+Salt master, also the bastion host.
+
+Ok, anyway, I got packer creating a Ubuntu 20.04 image with salt-minion
+installed, and a second one with salt-master, salt-minion, and gh installed.
+Next I need to figure out how to use the AWS secret store and pre-install a
+github access token on the salt-master.  It should be parameterized by
+cluster.
+
+So, the data structure I need in sls:
+<cluster>/salt-repo/host/<hostname>
+<cluster>/salt-repo/organization/<orgname>
+<cluster>/salt-repo/repository/<reponame>
+<cluster>/salt-repo/access-token/<token>
+<cluster>/host-group/<groupname>/num-instances/<num>
+<cluster>/host-group/<groupname>/role/<rolename1>
+<cluster>/host-group/<groupname>/role/<rolename2> (etc.)
+Each instance will have tags:
+cluster = <cluster>
+role:<rolename1>
+role:<rolename2>
+
+Available roles:
+salt-master
+salt-minion
+external-ssh
+webserver
+load-balancer
+monitor
+
+Use internal DNS server to serve the internal IP address of the salt-master.
+
+There is a way to get instance metadata from a salt grain.
+https://docs.saltproject.io/en/latest/ref/grains/all/salt.grains.metadata.html
+
+We can get pillar data from an arbitrary command and parse it as JSON.
+https://docs.saltproject.io/en/latest/ref/pillar/all/salt.pillar.cmd_json.html
+
+This would be useful for templating the salt://top.sls file.
+Salt has the concept of a master top, a plugin based system for generating the
+top.sls file.
+https://docs.saltproject.io/en/3006/topics/master_tops/index.html#master-tops-system
+
+It seems like this is necessary to make nodes and roles generic.
+https://docs.saltproject.io/en/3006/topics/master_tops/index.html#master-tops-system
+One thing is that it seems to prefer class-based node classifiers.
+I guess I could query AWS and rewrite the inventory periodically...
+and use the saltclass node classifier.
+
+So the way to clone git repos without leaving auth info on the server:
+1. Get a github access token from a secrets manager
+2. run echo "<github access token>" | gh auth login --with-token
+3. use gh to clone the repository, e.g., gh repo clone lago-morph/aws-salt
+4. Then log out with gh auth logout.  This deletes the token from the
+filesystem.  It would be easier if the gh repo clone command took an auth
+token as an argument.  I'm sure there's a better way to do this.
+
+
+
+
+
+
