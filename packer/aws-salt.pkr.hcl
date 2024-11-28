@@ -36,14 +36,14 @@ build {
   sources = ["source.amazon-ebs.ubuntu-20-04-amd64"]
   source "amazon-ebs.ubuntu-20-04-amd64" {
     ami_name = "${var.ami_prefix}/salt-minion/${local.timestamp}"
+    tags = {
+      "name" = "salt_minion"
+    }
   }
 
   provisioner "shell" {
     script = "scripts/install-salt-minion.sh"
   }
-  tags = [
-    "name" = "salt-minion"
-  ]
 }
 
 build {
@@ -51,6 +51,9 @@ build {
   sources = ["source.amazon-ebs.ubuntu-20-04-amd64"]
   source "amazon-ebs.ubuntu-20-04-amd64" {
     ami_name = "${var.ami_prefix}/salt-master/${local.timestamp}"
+    tags = {
+      "name" = "salt_master"
+    }
   }
 
   provisioner "shell" {
@@ -61,9 +64,6 @@ build {
     ]
   }
 
-  tags = [
-    "name" = "salt-master"
-  ]
-    
+
 }
 
