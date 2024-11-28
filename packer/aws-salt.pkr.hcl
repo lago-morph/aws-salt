@@ -60,7 +60,8 @@ build {
     scripts = [
       "scripts/install-salt-minion.sh",
       "scripts/install-salt-master.sh",
-      "scripts/install-gh.sh"
+      "scripts/install-gh.sh",
+      "scripts/install-extras.sh"
     ]
   }
 
