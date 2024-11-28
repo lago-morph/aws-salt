@@ -41,6 +41,10 @@ resource "aws_instance" "salt_master" {
     hostname_type = "resource-name"
   }
 
+  metadata_options {
+    instance_metadata_tags = "enabled"
+  }
+
   tags = {
     Name         = "salt-master"
     host_class   = "salt-master"
