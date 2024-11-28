@@ -1,0 +1,15 @@
+{
+  "cluster-type" : "simple-cluster-type",
+  "hostclass": [
+       {
+          "class-name": "load-balancer",
+          "num-hosts" : 1,
+          "public-ip" : true
+       },
+       {
+          "class-name": "webserver",
+          "num-hosts" : 3,
+          "public-ip" : false
+       }
+    ]
+}
