@@ -5,8 +5,9 @@ CLUSTER_TYPE="simple_cluster_type"
 BRANCH="main"
 
 aws ssm put-parameter \
+    --overwrite \
     --name "/cluster_type/$CLUSTER_TYPE/type_repo" \
-    --value "$CLUSTER_TYPE" \
+    --value "$TYPE_REPO" \
     --type String 
 
 aws ssm put-parameter \

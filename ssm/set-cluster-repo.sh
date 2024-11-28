@@ -5,8 +5,8 @@
 # of the repository structure and don't risk putting them in the git repo.
 
 TYPE_REPO="simple_type"
-REPO_ORGANIZATION="lago_morph"
-REPO_REPOSITORY="aws_salt_simple"
+REPO_ORGANIZATION="lago-morph"
+REPO_REPOSITORY="aws-salt-simple"
 
 # Key should be a read-only deploy key for just this repository
 REPO_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBmBgR6XruV0ny8XNQ2HWVXfB35UNn+wFaNa96XmH56L Read-only Key for aws-salt-simple "
@@ -14,16 +14,19 @@ REPO_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBmBgR6XruV0ny8XNQ2HWVXfB35
 # private key must be added separately - instructions in output
 
 aws ssm put-parameter \
+    --overwrite \
     --name "/cluster_repo/$TYPE_REPO/organization" \
     --value "$REPO_ORGANIZATION" \
     --type String 
 
 aws ssm put-parameter \
+    --overwrite \
     --name "/cluster_repo/$TYPE_REPO/repository" \
     --value "$REPO_REPOSITORY" \
     --type String 
 
 aws ssm put-parameter \
+    --overwrite \
     --name "/cluster_repo/$TYPE_REPO/public_key" \
     --value "$REPO_PUBLIC_KEY" \
     --type String 
