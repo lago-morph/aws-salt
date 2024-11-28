@@ -237,3 +237,99 @@ parameters.
 I haven't been good about checking in git changes in small amounts.  Taking
 care of that now.
 
+Well, unfortunately it wasn't not restarting the instance.  It still doesn't
+work.  But creating the role through the AWS console works fine.
+
+First, I will whittle the permissions down in the manually-created role to
+make sure it isn't something there.  Then I'll delve into maybe the instance
+profile.
+
+Ok, so it looks like it takes a while for the security policies on a role to
+update on an instance.  Because I removed something, that made it stop
+working, then I put it back, and it continued to not work.
+
+So I'm going to use a managed policy,
+arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+and see if that helps.
+
+That did.  I don't know what was wrong, but at this point I'm not going to
+spend any more time on it.
+
+Feeling my way around using an ssh key to get the repo.
+
+aws ssm get-parameter --name "/cluster_repo/simple_type/private_key" | jq .Parameter.Value > ~/.ssh/aws-salt-simple
+aws ssm get-parameter --name "/cluster_repo/simple_type/public_key" | jq .Parameter.Value > ~/.ssh/aws-salt-simple.pub
+
+I got this kind of working.  I get things in a strange format coming in from
+the keystore.  This worked except I now need some line breaks:
+
+aws ssm get-parameter --with-decryption --name
+"/cluster_repo/simple_type/private_key" | jq .Parameter.Value | sed
+"s/\\\n//g" | sed "s/\"//g" > .ssh/aws-salt-simple
+
+chmod 600 .ssh/aws-salt-simple
+ssh-agent
+(edit file)
+ssh-add .ssh/aws-salt-simple
+
+The following clones the repo (the first one is to get the host key)
+
+ssh -o "StrictHostKeyChecking no" git@github.com
+git clone git@github.com:lago-morph/aws-salt-simple.git
+
+Then these same things from the other project git install script
+sudo mv aws-salt-simple /opt
+sudo ln -s /opt/aws-salt-simple/salt /srv/salt
+sudo ln -s /opt/aws-salt-simple/pillar /srv/pillar
+sudo ln -s /opt/aws-salt-simple/salt/master.d/* /etc/salt/master.d/
+
+Ok, in order to get access to this stuff, I need to query my own tags to get
+cluster_type, then go down the line.
+
+
+Side note - found a great way to set aws region from metadata here
+https://gist.github.com/quiver/87f93bc7df6da7049d41
+
+This can go in UserData:
+#!/bin/bash
+yum install -y jq
+REGION=`curl -s
+http://169.254.169.254/latest/dynamic/instance-identity/document | jq .region
+-r`
+sudo -u ec2-user aws configure set region $REGION
+
+This can be executed on the command line:
+aws configure set region `curl --silent http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region`
+Of course, by default the instance tags are not exposed as part of the
+metadata at http://169.254.169.254/latest/meta-data/
+
+Ok, here we are:
+
+export CLUSTER_TYPE=$(curl http://169.254.169.254/latest/meta-data/tags/instance/cluster_type)
+aws configure set region `curl --silent http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region`
+export TYPE_REPO=$(aws ssm get-parameter --name "/cluster_type/$CLUSTER_TYPE/type_repo" | jq -r .Parameter.Value)
+export BRANCH=$(aws ssm get-parameter --name "/cluster_type/$CLUSTER_TYPE/branch" | jq -r .Parameter.Value)
+export REPOSITORY=$(aws ssm get-parameter --name "/cluster_repo/$TYPE_REPO/repository" | jq -r .Parameter.Value)
+export ORGANIZATION=$(aws ssm get-parameter --name "/cluster_repo/$TYPE_REPO/organization" | jq -r .Parameter.Value)
+export PRIVATE_KEY=$(aws ssm get-parameter --with-decryption --name "/cluster_repo/$TYPE_REPO/private_key" | jq -r .Parameter.Value)
+export PUBLIC_KEY=$(aws ssm get-parameter --name "/cluster_repo/$TYPE_REPO/public_key" | jq -r .Parameter.Value)
+
+echo $PRIVATE_KEY | sed "s/- /-\n/" | sed "s/ -/\n-/" > .ssh/repokey
+chmod 600 .ssh/repokey
+ssh-agent
+ssh-add .ssh/repokey
+
+GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone
+git@github.com:$ORGANIZATION/$REPOSITORY.git
+
+Then these same things from the other project git install script
+sudo mv $REPOSITORY /opt
+cd /opt/$REPOSITORY
+git checkout $BRANCH
+sudo ln -s /opt/$REPOSITORY/salt /srv/salt 
+sudo ln -s /opt/$REPOSITORY/pillar /srv/pillar 
+sudo ln -s /opt/$REPOSITORY/salt/master.d/* /etc/salt/master.d/
+
+sudo systemctl restart salt-master
+
+It is late, I will turn this into a UserData thing tomorrow.
