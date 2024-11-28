@@ -87,8 +87,153 @@ So the way to clone git repos without leaving auth info on the server:
 filesystem.  It would be easier if the gh repo clone command took an auth
 token as an argument.  I'm sure there's a better way to do this.
 
+=============================================================
+2024-11-27 More thoughts on design
+
+cluster tools (aws-salt)
+-------------
+GitHub repo with the terraform module and packer stuff defined
+
+`config` target in Makefile to create backend.tf file that points to the S3
+bucket and DynamoDB table with state based on a cluster name.
+
+Separate target in separate directory to create initial state and set key
+/cluster/<cluster-name> = <type-name>
+
+Separate targets to set parameters for cluster repo, cluster type and cluster based on input JSON file
+
+Note, salt master in a cluster should have IAM role to access cluster type,
+cluster repo and cluster keys for its cluster and nothing else
+
+cluster AMIs
+------------
+
+AMI for the salt master should be tagged type = salt-master
+AMI for all other hosts should be tagged type = host
+
+cluster type repo
+-----------------
+A github repo that has salt state files and saltclass definition for hosts in
+the cluster.  Defined in AWS Systems Manager Parameter Store (smps)
+
+/cluster-repo/<type-repo>/organization
+/cluster-repo/<type-repo>/repository
+/cluster-repo/<type-repo>/key-id
+/cluster-repo/<type-repo>/secret-key
+
+cluster type
+------------
+Combination of a GitHub repo and branch name.  Allows use of for instance dev,
+staging, and prod branches represented by different clusters.
+Defined in smps.
+
+/cluster-type/<type-name>/type-repo = <type-repo>
+/cluster-type/<type-name>/branch = <branch>
+
+cluster instance
+----------------
+Specifies a cluster type and a name for the cluster that is unique
+to the account and region in which the cluster will be deployed.  Defined in
+smps.
+
+This is a JSON structure to make it easier to process in terraform.  The
+other keys are lookup only, whereas with the cluster I have to iterate over
+the host classes.
+
+/cluster/<cluster-name> = 
+{ 
+   "cluster-type" : <type-name>, 
+   "hostclass": [
+     { "class-name" : <classname>,
+	   "num-hosts" : <num hosts>,
+	   "public-ip" : <true/false>
+	 }
+   ]   
+}
+The instance will be tagged with the cluster name and type.
+
+Need to manually ensure that the public attribute on the host class
+corresponds with how the host is defined in the saltclass and salt state
+files.
 
 
+Stuff to build:
+- scripts to manipulate cluster repo, cluster type, and cluster
+  - for now this can be template that is modified with AWS CLI commands
+- script to build AMIs for hosts and salt master, then set the smps keys /ami/hosts and /ami/salt-master
+- module to provision cluster based on cluster keys
+  - will explicitly build just one salt master and set up DNS for it
+  - takes a 
+- Simple cluster definition (salt states and saltclass)
+- salt-master firstboot script to grab repo and set symbolic links
 
 
+Also, figured out how to do git with ssh keys.
+Add a deploy key as the public key of the ssh key to the repository.
+Clone the repository using the following syntax:
+git clone git@github.com:lago-morph/aws-salt-simple.git
+
+And it uses the ssh key for authentication.
+
+Should make the key used by the install process read-only, and individual
+users when they log in can forward their keys and be able to do something
+better.
+
+Generate an SSH key to use for read-only access to the aws-salt-simple
+repository
+
+ssh-keygen -t ed25519 -C "Read-only Key for aws-salt-simple" -f aws-salt-simple -N ""
+
+What I want in the future is a CLI interface for editing the cluster repo,
+type, and clusters themselves.  Like the kubectl cli.
+Or alternatively an interactive one, where you can choose from valid values
+based on what is already in ssm.
+
+
+Inputs to the terraform module:
+admin-users = [
+  testuser: {
+    public_keys = [
+	  "<publickeys of whoever can login to this user>"
+	]
+	sudo = true
+  }
+] (default [])
+cluster-name = "simple-cluster-name"
+region =  (default "us-east-1")
+vpc_cidr = (default "10.0.0.0/16")
+
+I've been struggling with Terraform for hours, trying to get it to use my
+parameterization.  But I think I realized that there is another way:
+- define the cluster repo and cluster type in ssm
+- define the cluster name and the number of hosts in each hostclass as a json
+file that gets fed to terraform
+
+The json file could even be stored in ssm, and pulled before the terraform
+run.
+
+The other way to do this is to do a terraform apply with the -target option to
+pull the ssm data into the state file.  Then I can use it locally in for_each
+or count loops to define the resources.
+
+I also realize I need to basically create a single list which contains a value
+and a sequence number for each host in all hostgroups.  Terraform does poorly
+with nested lists unless they are associated to some other resource.
+
+I am going to work around this for now by putting the json that defines the
+cluster as an input to the terraform configuration.
+
+I just spent 2 hours trying to debug an AWS IAM issue.  And it looks like it
+was because terraform doesn't know that you have to restart an instance when
+you change its instance profile (which also changes its role).  Or it might
+have been the old version of the AWS CLI.  Jury is still out.
+
+Ok, I haven't written anything in here for a while.  Here's where I stand:
+- I create hosts based on a JSON document defining the cluster
+- They boot up using AMIs I created with Packer to pre-install stuff.
+- I'm working on getting security permissions so that I can access the ssm
+parameters.
+
+I haven't been good about checking in git changes in small amounts.  Taking
+care of that now.
 
