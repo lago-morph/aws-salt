@@ -333,3 +333,72 @@ sudo ln -s /opt/$REPOSITORY/salt/master.d/* /etc/salt/master.d/
 sudo systemctl restart salt-master
 
 It is late, I will turn this into a UserData thing tomorrow.
+
+=============================================================
+2024-11-29 Data model
+
+NOTE - THIS CHANGES TERMS USED ABOVE IN THIS CHANGELOG
+
+This is a "GitOps" driven cluster system.
+
+There is one repo, aws-salt, that contains the terraform module and helper
+scripts (e.g., packer build).
+
+There is an ultimate upstream repository cluster-type-template from which 
+cluster-type repositories should fork.
+
+For each cluster-type, there is one upstream repository forked from
+repo cluster-template, which targets the
+region you are doing development in for that type of cluster.  For additional
+regions, you will fork the cluster-type repo.
+
+aws-salt
+
+cluster-type-template
+   ||
+ (fork)
+   \/
+cluster-redis-default == (fork) ==> cluster-type-redis-us-east-2
+   ||
+(branch)
+   \/
+cluster-redis branch-n
+
+So a "cluster" is a cluster-type repository (potentially forked with the
+region redefined), plus a branch of that repository.  There cannot be multiple
+clusters with different names with the same repo and branch.  Just create a
+new branch if you want another cluster with an identical configuration.
+
+The cluster name is (cluster-type)-(branch-name), and must be unique by region
+and account.
+
+For convenience we will store the terraform state in with each cluster-repo
+and branch.
+
+In this example, Only actively modify the repository 
+cluster-type-redis-repo, maybe with branches main (production), staging, and
+however many dev branches are needed.
+branches to represent cluster types.
+
+I have not adapted the cardinality of trying to do this with multiple
+accounts.  I'm open to contributions adding that without make a default
+one-account system more complex.
+
+So:
+1 system repo: aws-salt
+1 template repo: cluster-type-template
+for each distinct cluster type:
+1 cluster-<type>-default repo forked from cluster-type-template with definition of saltstate and saltclass
+n branches, one for each distinct cluster in the default region
+
+For each m <region> other than the default region deploying cluster type <type>:
+m forks of cluster-<type>-default: cluster-<type>-<region>
+(it is intended for the region definition to change in these forks, along with
+perhaps the numbers of host classes in the various clusters)
+
+=============================================================
+2024-11-
+
+
+
+
