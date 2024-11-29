@@ -396,6 +396,36 @@ m forks of cluster-<type>-default: cluster-<type>-<region>
 (it is intended for the region definition to change in these forks, along with
 perhaps the numbers of host classes in the various clusters)
 
+Repo cluster-type-template has (in root of repo)
+cluster-type.json
+{ "cluster_type": <cluster-type-name>,  (e.g., "redis") (override when forking
+template)
+  "region" : <region>, (e.g., us-east-1) (overwrite when forking cluster-<type>-default)
+  "organization" : <github org or username>, (e.g., "lago-morph")
+  "private_key_file" : <filename> (e.g., ~/secrets/default-ro-key)
+}
+(ssm key "repository" will be generated from git metadata)
+Don't store private_key_file in repository directory structure!
+
+cluster.json (potentially different for each branch)
+{ 
+  "hostclass": 
+    [
+       {
+         "class_name": <saltclass1>,
+	     "num_hosts": <num>,
+	     "public_ip": <true/false>
+       },
+       {
+         "class_name": <saltclass2>,
+	     ...
+       },
+       ...
+    ]
+}
+
+
+
 =============================================================
 2024-11-
 
