@@ -401,10 +401,9 @@ cluster-type.json
 { "cluster_type": <cluster-type-name>,  (e.g., "redis") (override when forking
 template)
   "region" : <region>, (e.g., us-east-1) (overwrite when forking cluster-<type>-default)
-  "organization" : <github org or username>, (e.g., "lago-morph")
   "private_key_file" : <filename> (e.g., ~/secrets/default-ro-key)
 }
-(ssm key "repository" will be generated from git metadata)
+(ssm keys "repository" and "organization" will be generated from git metadata)
 Don't store private_key_file in repository directory structure!
 
 cluster.json (potentially different for each branch)
@@ -424,11 +423,6 @@ cluster.json (potentially different for each branch)
     ]
 }
 
-
-
 =============================================================
 2024-11-
-
-
-
 
