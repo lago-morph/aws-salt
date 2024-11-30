@@ -551,3 +551,17 @@ sudo ln -s /opt/$REPOSITORY/pillar /srv/pillar
 sudo ln -s /opt/$REPOSITORY/salt/master.d/* /etc/salt/master.d/
 
 sudo systemctl restart salt-master
+
+=============================================================
+2024-11-29-5 todos for next time
+
+- Create UserData script for salt-master
+- Configure private DNS server to point "salt" to salt-master
+- Modify EC2 security group to only allow hosts to contact salt ports on master
+- Basic salt config for webserver
+- Script to populate saltclass hosts from instance tags
+- cron job to periodically get instance hosts, apply state
+- Make admin users parameter actually work in module
+- Figure out how to taint hosts in Makefile in template terraform dir
+- Start writing up documentation in README.md files in template
+
