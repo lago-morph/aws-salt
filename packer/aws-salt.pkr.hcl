@@ -42,7 +42,10 @@ build {
   }
 
   provisioner "shell" {
-    script = "scripts/install-salt-minion.sh"
+    scripts = [
+        "scripts/wait-for-cloud-init.sh",
+        "scripts/install-salt-minion.sh"
+    ]
   }
 }
 
@@ -58,6 +61,7 @@ build {
 
   provisioner "shell" {
     scripts = [
+      "scripts/wait-for-cloud-init.sh",
       "scripts/install-salt-minion.sh",
       "scripts/install-salt-master.sh",
       "scripts/install-gh.sh",
