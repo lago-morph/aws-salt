@@ -9,18 +9,23 @@
 # We need an instance profile that encapsulates the role
 # we need to give the instance profile to the instance when it is launched
 
+/*
 # figure out what the type_repo is for the cluster_type we are using
 data "aws_ssm_parameter" "type_repo" {
   name = "/cluster_type/${local.cluster_type}/type_repo"
 }
+*/
 
+/*
 locals {
-  cluster_type = var.cluster_data["cluster_type"]
+  cluster_type = var.cluster_type
 }
 locals {
   type_repo = data.aws_ssm_parameter.type_repo.insecure_value
 }
+*/
 
+/*
 # data block to define the policy instead of a JSON string
 data "aws_iam_policy_document" "access_ssm" {
   statement {
@@ -44,6 +49,7 @@ data "aws_iam_policy_document" "access_ssm" {
     effect    = "Allow"
   }
 }
+*/
 
 data "aws_iam_policy_document" "ec2_assume_role" {
   statement {
@@ -59,21 +65,23 @@ data "aws_iam_policy_document" "ec2_assume_role" {
 # Nifty shortcut to define data resource, then policy is from here:
 # https://developer.hashicorp.com/terraform/tutorials/aws/aws-iam-policy
 
+/*
 resource "aws_iam_policy" "ssm_parameter_policy" {
   name        = "${local.cluster_type}-${var.cluster_name}-ssm-policy"
   description = "Allow salt master to access parameters for cluster ${var.cluster_name}"
   policy      = data.aws_iam_policy_document.access_ssm.json
 }
+*/
 
 resource "aws_iam_role" "salt_master_role" {
-  name               = "${local.cluster_type}-${var.cluster_name}-role"
+  name               = "${var.cluster_name}-role"
   assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
 }
 
 resource "aws_iam_role_policy_attachment" "salt_master_role" {
   role       = aws_iam_role.salt_master_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-#  policy_arn = aws_iam_policy.ssm_parameter_policy.arn
+  #  policy_arn = aws_iam_policy.ssm_parameter_policy.arn
 }
 
 resource "aws_iam_instance_profile" "salt_master" {

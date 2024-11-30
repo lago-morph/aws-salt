@@ -17,7 +17,7 @@ data "aws_ami" "salt_minion" {
 }
 
 locals {
-  cluster_instances = merge([for hc in var.cluster_data.hostclass :
+  cluster_instances = merge([for hc in var.hostclass :
     { for i in range(hc.num_hosts) :
       "${hc.class_name}-${i}" => {
         class_name = hc.class_name
@@ -46,10 +46,12 @@ resource "aws_instance" "salt_master" {
   }
 
   tags = {
-    Name         = "salt-master"
-    host_class   = "salt-master"
-    cluster_name = var.cluster_name
-    cluster_type = var.cluster_data["cluster_type"]
+    Name              = "salt-master"
+    host_class        = "salt-master"
+    cluster_name      = var.cluster_name
+    cluster_type      = var.cluster_type
+    repository_source = var.repository_source
+    ssm_secret_path   = local.ssm_secret_path
   }
 }
 
@@ -70,7 +72,7 @@ resource "aws_instance" "host" {
     Name         = each.key
     host_class   = each.value["class_name"]
     cluster_name = var.cluster_name
-    cluster_type = var.cluster_data["cluster_type"]
+    cluster_type = var.cluster_type
   }
 }
 
