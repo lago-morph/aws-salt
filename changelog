@@ -398,12 +398,13 @@ perhaps the numbers of host classes in the various clusters)
 
 Repo cluster-type-template has (in root of repo)
 cluster-type.json
-{ "cluster_type": <cluster-type-name>,  (e.g., "redis") (override when forking
-template)
+{ "cluster_type": <cluster-type-name>,  (e.g., "redis") (override when forking template)
+  "repository_source": <whatever.git>, (e.g., "git@github.com:lago-morph/cluster-type-template.git")
   "region" : <region>, (e.g., us-east-1) (overwrite when forking cluster-<type>-default)
   "private_key_file" : <filename> (e.g., ~/secrets/default-ro-key)
 }
-(ssm keys "repository" and "organization" will be generated from git metadata)
+Make sure repository_source matches the name of the new repository or you will
+be sad (this is not checked!)
 Don't store private_key_file in repository directory structure!
 
 cluster.json (potentially different for each branch)
@@ -424,5 +425,86 @@ cluster.json (potentially different for each branch)
 }
 
 =============================================================
-2024-11-
+2024-11-29-2 Process design
+
+0. Ensure the base images have been created
+(This step only needs to be done once per account/region combination)
+
+Clone the repository aws-simple.  
+Configure the AWS CLI.  
+Change directory to aws-simple/packer.
+Run `packer init .` followed by `packer build .`
+  (This takes 10-15 minutes typically, and can run in the background while
+  doing the rest of this stuff)
+Sometimes one or another of the builds fail.  You can do just one with one of
+packer build -only=minion-build.amazon-ebs.ubuntu-20-04-amd64 .
+packer build -only=master-build.amazon-ebs.ubuntu-20-04-amd64 .
+
+1. Create the cluster-type repository.
+
+Fork your new cluster-type repository from cluster-type-template.  Name the
+new repository "cluster-<type>-default", where <type> is a descriptive name
+(referred to as cluster_type_name below) like "redis" or something to describe 
+this type of cluster.
+
+Add the public key for a ssh keypair as a deploy-key in cluster-<type>-default.
+
+Clone the new repo to your local filesystem.
+
+In cluster-type.json, make sure you fill out the cluster-type-name, region,
+and provide a filename on the local filesystem which contains the private key
+for the deploy key.  In the future this may be replaced with something using
+Vault, this is a workaround for now.
+
+2. Upload private key to AWS.
+
+Using scripts/aws_ssm_key.sh, copy the private deploy key to the 
+System Manager Parameter Store on your AWS account.
+
+3. Create a cluster using the cluster.json.  
+If desired, change cluster.json to meet needs.  If desired, create a branch.
+
+go to the terraform directory, and in succession type
+make init (only required when the first time)
+make plan (if you want to see what it will do)
+make apply or make apply-auto-approve
+
+If done with the Makefile, it will validate the region you are configured to
+use, the region specified in cluster-type.json, and the region from the state
+file (for an already-created cluster) are consistent.
+
+When a cluster is created it uses the cluster_type_name and the branch to
+create a cluster instance.  Cluster instances can be ephemeral, or could
+correspond to long-lived functions like prod or staging.  aws-salt does not
+use the Salt environment feature, and I try not to use that term to avoid
+confusion.
+
+Be careful about merging
+branches that each have a cluster associated with them - the terraform state
+for the cluster is stored in Git, and you don't want to accidentally overwrite
+an active cluster state file with a merge.
+
+4. Access your cluster
+If you defined an ssh-bastion, then you can (from the terraform directory) do
+make ssh-cluster
+
+It may take a while for the cluster to build.  
+
+=============================================================
+2024-11-29-3 making changes outlined above
+
+Have to change a lot of the prototyping I did before to correspond to the new
+data structure layout.
+
+Lots and lots of just debugging-type changes for the terraform module.
+
+
+
+Note, with packer found out (I think) why builds don't always work.  It turns
+out that provisioning scripts start to run before cloud-init is done.
+Cloud-init updates apt sources.  So if you start trying to install packages
+before it is done, it sometimes fails.
+
+Added a script that all it does is "cloud-init status --wait"
+And that seemed (?) to fix the problem.
 
