@@ -51,7 +51,7 @@ resource "aws_instance" "salt_master" {
     cluster_name      = var.cluster_name
     cluster_type      = var.cluster_type
     repository_source = var.repository_source
-    ssm_secret_path   = local.ssm_secret_path
+    ssm_secret_path   = "/${var.cluster_name}/private_key"
   }
 }
 
