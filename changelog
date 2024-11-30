@@ -508,3 +508,46 @@ before it is done, it sometimes fails.
 Added a script that all it does is "cloud-init status --wait"
 And that seemed (?) to fix the problem.
 
+Ok, lots and lots of debugging, got the module working with the
+cluster-type-template repository.
+
+Note that I set the private key in SSM using a script in that repository
+(scripts/set-private-key.sh).  I am not passing the private key through
+Terraform at all.
+
+=============================================================
+2024-11-29-4 prototype UserData script for salt-master
+
+Now that I've changed all the naming conventions, I need to do the thing where
+I manually set up the repository as a template for the UserData script on the
+salt-master.
+
+## set up the aws region
+aws configure set region `curl --silent http://169.254.169.254/latest/dynamic/instance-identity/document | jq -r .region`
+
+## grab the values we need from tags and SSM parameter
+export CLUSTER_TYPE=$(curl http://169.254.169.254/latest/meta-data/tags/instance/cluster_type)
+export REPOSITORY_SOURCE=$(curl http://169.254.169.254/latest/meta-data/tags/instance/repository_source)
+export CLUSTER_NAME=$(curl http://169.254.169.254/latest/meta-data/tags/instance/cluster_name)
+export SSM_SECRET_PATH=$(curl http://169.254.169.254/latest/meta-data/tags/instance/ssm_secret_path)
+export BRANCH=$(curl http://169.254.169.254/latest/meta-data/tags/instance/branch)
+export PRIVATE_KEY=$(aws ssm get-parameter --with-decryption --name $SSM_SECRET_PATH | jq -r .Parameter.Value)
+
+## put back newlines where needed and set up private key for repository
+echo $PRIVATE_KEY | sed "s/- /-\n/" | sed "s/ -/\n-/" > .ssh/repokey
+chmod 600 .ssh/repokey
+ssh-agent
+ssh-add .ssh/repokey
+
+export REPOSITORY=gitrepo 
+GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone $REPOSITORY_SOURCE $REPOSITORY
+
+## Then these same things from the other project git install script
+sudo mv $REPOSITORY /opt
+cd /opt/$REPOSITORY
+git checkout $BRANCH
+sudo ln -s /opt/$REPOSITORY/salt /srv/salt 
+sudo ln -s /opt/$REPOSITORY/pillar /srv/pillar 
+sudo ln -s /opt/$REPOSITORY/salt/master.d/* /etc/salt/master.d/
+
+sudo systemctl restart salt-master
