@@ -52,6 +52,7 @@ resource "aws_instance" "salt_master" {
     cluster_type      = var.cluster_type
     repository_source = var.repository_source
     ssm_secret_path   = "/${var.cluster_name}/private_key"
+    branch            = var.branch
   }
 }
 

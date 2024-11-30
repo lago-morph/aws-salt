@@ -3,6 +3,11 @@ variable "repository_source" {
   type        = string
 }
 
+variable "branch" {
+  description = "Branch to use in repository for cluster"
+  type        = string
+}
+
 variable "cluster_name" {
   description = "Cluster name"
   type        = string
