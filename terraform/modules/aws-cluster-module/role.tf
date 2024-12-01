@@ -81,7 +81,11 @@ resource "aws_iam_role" "salt_master_role" {
 resource "aws_iam_role_policy_attachment" "salt_master_role" {
   role       = aws_iam_role.salt_master_role.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  #  policy_arn = aws_iam_policy.ssm_parameter_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "salt_master_EC2_ro" {
+  role       = aws_iam_role.salt_master_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess"
 }
 
 resource "aws_iam_instance_profile" "salt_master" {
