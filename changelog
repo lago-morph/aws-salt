@@ -1,4 +1,4 @@
-=============================================================
+===============================================================================
 2024-11-26 Packer tutorials
 
 Learning Packer using the Hashicorp AWS
@@ -12,7 +12,7 @@ something about a VPC not being available.  Turned out this was because I was
 trying to build one of them in a region where I didn't have a default VPC.
 
 
-=============================================================
+===============================================================================
 2024-11-26-2 Design of "better" system for bootstrapping salt
 
 What I want to do here is come up with a way to leverage packer, terraform,
@@ -87,7 +87,7 @@ So the way to clone git repos without leaving auth info on the server:
 filesystem.  It would be easier if the gh repo clone command took an auth
 token as an argument.  I'm sure there's a better way to do this.
 
-=============================================================
+===============================================================================
 2024-11-27 More thoughts on design
 
 cluster tools (aws-salt)
@@ -334,7 +334,7 @@ sudo systemctl restart salt-master
 
 It is late, I will turn this into a UserData thing tomorrow.
 
-=============================================================
+===============================================================================
 2024-11-29 Data model
 
 NOTE - THIS CHANGES TERMS USED ABOVE IN THIS CHANGELOG
@@ -424,7 +424,7 @@ cluster.json (potentially different for each branch)
     ]
 }
 
-=============================================================
+===============================================================================
 2024-11-29-2 Process design
 
 0. Ensure the base images have been created
@@ -490,7 +490,7 @@ make ssh-cluster
 
 It may take a while for the cluster to build.  
 
-=============================================================
+===============================================================================
 2024-11-29-3 making changes outlined above
 
 Have to change a lot of the prototyping I did before to correspond to the new
@@ -515,7 +515,7 @@ Note that I set the private key in SSM using a script in that repository
 (scripts/set-private-key.sh).  I am not passing the private key through
 Terraform at all.
 
-=============================================================
+===============================================================================
 2024-11-29-4 prototype UserData script for salt-master
 
 Now that I've changed all the naming conventions, I need to do the thing where
@@ -552,7 +552,7 @@ sudo ln -s /opt/$REPOSITORY/salt/master.d/* /etc/salt/master.d/
 
 sudo systemctl restart salt-master
 
-=============================================================
+===============================================================================
 2024-11-29-5 todos for next time
 
 - Create UserData script for salt-master
@@ -565,7 +565,7 @@ sudo systemctl restart salt-master
 - Figure out how to taint hosts in Makefile in template terraform dir
 - Start writing up documentation in README.md files in template
 
-=============================================================
+===============================================================================
 2024-11-30 user data and DNS
 
 Tried adding a user data script to salt-master.  It wasn't applied.  I read
@@ -611,7 +611,7 @@ of the salt-minion key requests correspond to the Name keys for the instances.
 So I guess we are ready now to build the hosts in saltclass with queries to
 aws to find EC2 instances with the same cluster_name as the salt-master.
 
-=============================================================
+===============================================================================
 2024-11-30-2 populating saltclass hosts.
 
 Stupid jq tricks.
@@ -708,3 +708,51 @@ This is the output of that command with my current cluster:
 
 Anyway, getting late, will finish up converting this into saltclass host files
 tomorrow.
+
+===============================================================================
+2024-12-01 setting up saltclass nodes
+
+I added permissions to the salt-master instance role to query EC2 (read-only).
+
+I want the folowing record:
+{
+  "private_ip": "10.0.64.43",
+  "public_ip": "18.212.135.48",
+  "host_name": "salt-master",
+  "host_class": "salt-master"
+}
+
+To turn into the following file:
+
+<saltclass_path>/nodes/salt-master.yml
+environment: base
+
+classes:
+  - salt-master
+
+pillar:
+  network:
+    public_ip: "18.212.135.48"
+    private_ip: "10.0.64.43"
+
+
+I did a ton of fiddling to change around my jq manipulation.  This is what I
+have so far, but I need to take a break so I'm just recording my progress.
+
+#!/bin/bash
+
+all_instances=$(aws ec2 describe-instances --filter "Name=tag:cluster_name,Values=template-main")
+
+running_instances=$(jq -r '[.Reservations[].Instances[] | select(.State.Name == "running")]' <<< $all_instances)
+
+nkey=$(jq -r '[.[] |
+              (.Tags | from_entries) as $tags | 
+              {Key: $tags.Name, Value: ({private_ip: .PrivateIpAddress, public_ip: .PublicIpAddress, host_class: $tags.host_class})}]' <<< $running_instances)
+
+nodes=$(jq -r from_entries <<< $nkey)
+echo $nodes
+
+node_names=$(jq -r keys <<< $nodes)
+echo $node_names
+
+
