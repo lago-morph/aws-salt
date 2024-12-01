@@ -596,5 +596,8 @@ And some of the other combinations.  For some reason sometimes when you do
 "sudo git ..." it doesn't auth, but with just "git ..." it does, even when
 running as root.  This was very strange.  But now it is fixed.
 
+Added DNS for the hosts.  Created a private route 53 zone and added entries
+for each of the hosts and the salt-master with their private IP addresses.
+
 
 

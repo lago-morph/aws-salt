@@ -12,6 +12,8 @@ BRANCH=$(curl http://169.254.169.254/latest/meta-data/tags/instance/branch)
 PRIVATE_KEY=$(aws ssm get-parameter --with-decryption --name $SSM_SECRET_PATH | jq -r .Parameter.Value)
 ## put back newlines where needed and set up private key for repository
 PKFILE=/tmp/repokey
+echo "nameserver 10.0.0.2" >> /etc/resolv.conf
+echo "search $CLUSTER_NAME.cluster" >> /etc/resolv.conf
 echo $PRIVATE_KEY | sed "s/- /-\n/" | sed "s/ -/\n-/" > $PKFILE
 chmod 600 $PKFILE
 ## Clone the repository

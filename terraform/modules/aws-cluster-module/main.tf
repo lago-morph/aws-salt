@@ -71,6 +71,12 @@ resource "aws_instance" "host" {
     hostname_type = "resource-name"
   }
 
+  metadata_options {
+    instance_metadata_tags = "enabled"
+  }
+
+  user_data = file("${path.module}/files/host_userdata.sh")
+
   tags = {
     Name         = each.key
     host_class   = each.value["class_name"]
