@@ -10,7 +10,7 @@ resource "aws_route53_record" "salt_master" {
   name    = "salt"
   zone_id = aws_route53_zone.internal_dns.zone_id
   type    = "A"
-  ttl     = 300
+  ttl     = 60
   records = [aws_instance.salt_master.private_ip]
 }
 
@@ -19,6 +19,6 @@ resource "aws_route53_record" "host" {
   name     = each.key
   zone_id  = aws_route53_zone.internal_dns.zone_id
   type     = "A"
-  ttl      = 300
+  ttl      = 60
   records  = [aws_instance.host[each.key].private_ip]
 }

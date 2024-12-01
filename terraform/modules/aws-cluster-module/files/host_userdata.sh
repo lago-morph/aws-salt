@@ -7,3 +7,8 @@ aws configure set region $REGION
 CLUSTER_NAME=$(curl http://169.254.169.254/latest/meta-data/tags/instance/cluster_name)
 echo "nameserver 10.0.0.2" >> /etc/resolv.conf
 echo "search $CLUSTER_NAME.cluster" >> /etc/resolv.conf
+HOST_NAME=$(curl http://169.254.169.254/latest/meta-data/tags/instance/Name)
+echo "$HOST_NAME" > /etc/salt/minion_id
+echo "$HOST_NAME" > /hostname
+hostname $HOST_NAME
+systemctl restart salt-minion

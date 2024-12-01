@@ -25,5 +25,10 @@ git checkout $BRANCH
 ln -s /opt/$REPOSITORY/salt /srv/salt
 ln -s /opt/$REPOSITORY/pillar /srv/pillar
 ln -s /opt/$REPOSITORY/salt/master.d/* /etc/salt/master.d/
+HOST_NAME=$(curl http://169.254.169.254/latest/meta-data/tags/instance/Name)
+echo "$HOST_NAME" > /etc/salt/minion_id
+echo "$HOST_NAME" > /hostname
+hostname $HOST_NAME
 ## start stuff
+systemctl restart salt-minion
 systemctl restart salt-master

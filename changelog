@@ -599,5 +599,15 @@ running as root.  This was very strange.  But now it is fixed.
 Added DNS for the hosts.  Created a private route 53 zone and added entries
 for each of the hosts and the salt-master with their private IP addresses.
 
+For some reason salt-master can't look up its own DNS record.  I'm confused.
 
+Also, the file /etc/salt/minion_id is set during the packer run, and needs to
+be removed as part of packer or explicitly configured in the UserData of the
+hosts/salt-master.
+
+Ok, the DNS records are correctly set, the hostnames are set, the identities
+of the salt-minion key requests correspond to the Name keys for the instances.
+
+So I guess we are ready now to build the hosts in saltclass with queries to
+aws to find EC2 instances with the same cluster_name as the salt-master.
 
