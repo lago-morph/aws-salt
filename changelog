@@ -566,7 +566,7 @@ sudo systemctl restart salt-master
 - Start writing up documentation in README.md files in template
 
 =============================================================
-2024-11-30 user data
+2024-11-30 user data and DNS
 
 Tried adding a user data script to salt-master.  It wasn't applied.  I read
 that it will fail silently if there are extra spaces in the file.  So remove
@@ -611,3 +611,100 @@ of the salt-minion key requests correspond to the Name keys for the instances.
 So I guess we are ready now to build the hosts in saltclass with queries to
 aws to find EC2 instances with the same cluster_name as the salt-master.
 
+=============================================================
+2024-11-30-2 populating saltclass hosts.
+
+Stupid jq tricks.
+
+This gives me all the ec2 instances that are running in cluster template-main.
+aws ec2 describe-instances --filter "Name=tag:cluster_name,Values=template-main"
+
+
+The first part of this grabs all the instances in all the reservations.
+The second part of this only passes through the instances that are running.
+jq '.Reservations[].Instances[] | select(.State.Name == "running")'
+
+We can restrict this down to just the IP addresses and the tags like this:
+jq '{PrivateIpAddress, PublicIpAddress, Tags}'
+
+(jq {foo, bar} is a shortcut for jq {foo: .foo, bar: .bar})
+
+Having difficulty figuring out how to extract the values from the tags and
+rearrange them.  For instance, I want to index by the Name tag, and have other
+ones available at the same level as the IP addresses.
+
+So I want:
+
+{ "PrivateIpAddress": "10.0.64.43", 
+  "PublicIpAddress": "18.212.135.48", 
+  "Tags": [ 
+      { "Key": "host_class",
+        "Value": "salt-master"
+	  },
+      { "Key": "Name", 
+		"Value": "salt-master" 
+      }
+  ]
+}
+{ "PrivateIpAddress": "10.0.73.92",
+  "PublicIpAddress": "54.210.68.118",
+  "Tags": [
+	   { "Key": "host_class",
+	     "Value": "public-webserver"
+	   },
+	   { "Key": "Name",
+	     "Value": "public-webserver-0"
+	   }
+  ]
+}
+
+To turn into
+
+{
+      "PrivateIpAddress": "10.0.64.43", 
+      "PublicIpAddress": "18.212.135.48", 
+	  "hostname": "salt-master",
+	  "host_class": "salt-master"
+}
+{ 
+      "PrivateIpAddress": "10.0.73.92",
+      "PublicIpAddress": "54.210.68.118",
+	  "hostname": "public-webserver-0"
+      "host_class": "public-webserver",
+}
+
+And, I finally got it.
+
+aws ec2 describe-instances --filter "Name=tag:cluster_name,Values=template-main" \
+	| jq '.Reservations[].Instances[] | select(.State.Name == "running")' \
+	| jq '{private_ip: .PrivateIpAddress, 
+	       public_ip: .PublicIpAddress, 
+		   host_name: (.Tags[] | select(.Key == "Name").Value), 
+		   host_class: (.Tags[] | select(.Key == "host_class").Value)}'
+
+I think there must be a better way to "reduce" the tags to first-class
+attributes.  I just don't know jq well enough.
+
+This is the output of that command with my current cluster:
+
+{
+  "private_ip": "10.0.72.116",
+  "public_ip": "50.17.77.66",
+  "host_name": "bastion-0",
+  "host_class": "bastion"
+}
+{
+  "private_ip": "10.0.73.92",
+  "public_ip": "54.210.68.118",
+  "host_name": "public-webserver-0",
+  "host_class": "public-webserver"
+}
+{
+  "private_ip": "10.0.64.43",
+  "public_ip": "18.212.135.48",
+  "host_name": "salt-master",
+  "host_class": "salt-master"
+}
+
+Anyway, getting late, will finish up converting this into saltclass host files
+tomorrow.
