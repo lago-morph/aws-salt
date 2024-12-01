@@ -45,6 +45,8 @@ resource "aws_instance" "salt_master" {
     instance_metadata_tags = "enabled"
   }
 
+  user_data = file("${path.module}/files/salt_master_userdata.sh")
+
   tags = {
     Name              = "salt-master"
     host_class        = "salt-master"

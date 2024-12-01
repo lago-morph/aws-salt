@@ -565,3 +565,36 @@ sudo systemctl restart salt-master
 - Figure out how to taint hosts in Makefile in template terraform dir
 - Start writing up documentation in README.md files in template
 
+=============================================================
+2024-11-30 user data
+
+Tried adding a user data script to salt-master.  It wasn't applied.  I read
+that it will fail silently if there are extra spaces in the file.  So remove
+the newlines I had for clarity and try again.
+
+I can look at the user data on the instance with 
+INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
+sudo cat /var/lib/cloud/instances/$INSTANCE_ID/user-data.txt
+
+(from https://stackoverflow.com/questions/15904095/how-to-check-whether-my-user-data-passing-to-ec2-instance-is-working)
+
+Turns out I was doing it on the hosts, not salt-master.  Ugh.
+
+Now more debugging.  Everything is permission denied.  I'm not sure what user
+the user data runs as.  Not sure if ubuntu user already exists.
+
+Turns out I'd added a deploy key for testing the user functionality, rather
+than my "default ro-key".  So added the public key for the private key I've
+been using as a deploy key.
+
+Turns out there is a world of difference between 
+GIT_SSH_COMMAND="sudo ssh ..." sudo git clone ...
+and 
+GIT_SSH_COMMAND="ssh ..." git clone ...
+
+And some of the other combinations.  For some reason sometimes when you do
+"sudo git ..." it doesn't auth, but with just "git ..." it does, even when
+running as root.  This was very strange.  But now it is fixed.
+
+
+
