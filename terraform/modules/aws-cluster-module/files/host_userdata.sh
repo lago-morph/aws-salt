@@ -12,3 +12,9 @@ echo "$HOST_NAME" > /etc/salt/minion_id
 echo "$HOST_NAME" > /hostname
 hostname $HOST_NAME
 systemctl restart salt-minion
+RES_CONF=/etc/systemd/resolved.conf
+echo "[Resolve]" > $RES_CONF
+echo "DNS=10.0.0.2" >> $RES_CONF
+echo "Domains=$CLUSTER_NAME.cluster" >> $RES_CONF
+systemctl restart systemd-resolved
+

@@ -12,10 +12,6 @@ BRANCH=$(curl http://169.254.169.254/latest/meta-data/tags/instance/branch)
 PRIVATE_KEY=$(aws ssm get-parameter --with-decryption --name $SSM_SECRET_PATH | jq -r .Parameter.Value)
 ## put back newlines where needed and set up private key for repository
 PKFILE=/tmp/repokey
-RES_CONF=/etc/systemd/resolved.conf
-echo "[Resolve]" > $RES_CONF
-echo "DNS=10.0.0.2" >> $RES_CONF
-echo "Domains=$CLUSTER_NAME.cluster" >> $RES_CONF
 echo $PRIVATE_KEY | sed "s/- /-\n/" | sed "s/ -/\n-/" > $PKFILE
 chmod 600 $PKFILE
 ## Clone the repository
@@ -37,4 +33,9 @@ pipx install jinja2-cli --force
 pipx ensurepath
 systemctl restart salt-minion
 systemctl restart salt-master
+RES_CONF=/etc/systemd/resolved.conf
+echo "[Resolve]" > $RES_CONF
+echo "DNS=10.0.0.2" >> $RES_CONF
+echo "Domains=$CLUSTER_NAME.cluster" >> $RES_CONF
+systemctl restart systemd-resolved
 
