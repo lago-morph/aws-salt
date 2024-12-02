@@ -1,3 +1,5 @@
+See [TODO](todo.md) for things I'm still working on with this!
+
 # Overview
 What I want to do here is come up with a way to leverage packer, terraform, and salt to build infrastructure on AWS.
 
