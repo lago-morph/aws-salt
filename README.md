@@ -1,18 +1,14 @@
-What I want to do here is come up with a way to leverage packer, terraform,
-and salt to built infrastructure on AWS in a professional and robust way.
+# Overview
+What I want to do here is come up with a way to leverage packer, terraform, and salt to built infrastructure on AWS in a professional and robust way.
 
-This is a "GitOps" driven cluster system.
+# Repositories
+There is one repo, aws-salt, that contains the terraform module and helper scripts (e.g., packer build).
 
-There is one repo, aws-salt, that contains the terraform module and helper
-scripts (e.g., packer build).
+There is an ultimate upstream repository [cluster-type-template](https://github.com/lago-morph/cluster-type-template) from which cluster-type repositories should fork.
 
-There is an ultimate upstream repository cluster-type-template from which 
-cluster-type repositories should fork.
+For each cluster-type, there is one upstream repository forked from repo cluster-type-template, which targets the region you are doing development in for that type of cluster.  For additional regions, you will fork the cluster-type repo.
 
-For each cluster-type, there is one upstream repository forked from
-repo cluster-template, which targets the
-region you are doing development in for that type of cluster.  For additional
-regions, you will fork the cluster-type repo.
+## Repository diagram
 
 aws-salt
 
@@ -29,47 +25,57 @@ cluster-redis branch-n
 So a "cluster" is a cluster-type repository (potentially forked with the
 region redefined), plus a branch of that repository.  There cannot be multiple
 clusters with different names with the same repo and branch.  Just create a
-new branch if you want another cluster with an identical configuration.
+new branch in the git repository if you want another cluster with an identical configuration.
 
 The cluster name is (cluster-type)-(branch-name), and must be unique by region
 and account.
 
-For convenience we will store the terraform state in with each cluster-repo
-and branch.
+For convenience we will store the terraform state in the git repository with each cluster-repo and branch.  This can be easily overridden if you want remote state, e.g. in an S3 bucket.
 
-In this example, Only actively modify the repository 
-cluster-type-redis-repo, maybe with branches main (production), staging, and
-however many dev branches are needed.
-branches to represent cluster types.
+# Instantiation instructions
+For example, say I'm interested in making a redis cluster.  Here are the sequence of steps I would follow:
+1. Fork [cluster-type-template](https://github.com/lago-morph/cluster-type-template) to a new repository called `cluster-redis-default`.
+2. Create a new ssh key pair or use an existing one for access to the `cluster-redis-default` git repo.  For instance, on GitHub you would add the public key as a "deploy key" for the repository.
+3. Clone your new repository to your local system.
+4. Clone [aws-salt](https://github.com/lago-morph/aws-salt) to your local system.
+5. Configure your AWS CLI to access your account and the region in which you plan to deploy the cluster.
+6. cd `aws-salt/packer`, and type `packer init .` followed by `packer build .` to build the AMIs.  This takes 10-15 minutes, so do it early so you can do the rest of the setup while waiting.
+7. In the file `cluster-redis-default/cluster-type.json`, set "cluster_type" to redis, "repository_source" to the ssh-accessible URL for the `cluster-redis-default` repository, then set your region and a reference to the private key file on your local machine that can access the repo read-only (e.g., GitHub deploy key or equivalent).
+8. In the file `cluster-redis-default/cluster.json` file, create records for each type of host you want in the cluster, the number to create, and if it should be on the public IP subnet of the VPC (otherwise it will be on a private subnet with no route to the internet).  Note that a NAT gateway is not currently created for the private subnets (this is a future todo).
+9. Add the ssh private key from step 1a in the AWS SSM paramter `/<type>-<branch>/private_key`.  E.g., for cluster type `redis`, instantiated from branch `main`, you need to populate the SSM parameter `/redis-main/private_key`.  There is a script in `cluster-type-template/scripts/set-private-key.sh` that will set this parameter if the private key file is on your local filesystem, and you've configured the location in `cluster-type.json`.  You can also populate this parameter using the AWS web console or AWS CLI.
+10. change directory to `cluster-redis-default/terraform`, and type `make init` followed by `make apply-auto-approve` to build your cluster.  This will create a cluster with name `redis-master` or `redis-main`, depending on your default branch name.
+11. Make sure to commit the `cluster-redis-default/terraform/terraform.tfstate` file into your git repository.  This is the Terraform state file and needs to be saved as long as your cluster is running.
+12. Once the cluster has been created, you can ssh to the salt-master by being in the directory `cluster-redis-default/terraform` and typing `make ssh-master`.
+13. You can create other clusters in different branches with different configurations by creating a new git branch, changing cluster.json, deleting terraform.tfstate (make sure it is committed in its branch before deleting), and following along again from step 8.
 
-I have not adapted the cardinality of trying to do this with multiple
-accounts.  I'm open to contributions adding that without make a default
-one-account system more complex.
+To instantiate a cluster in another region (e.g., `us-east-2`), fork `cluster-redis-default` to another repo named `cluster-redis-us-east-2`.  Clone this repo, change the region and repository_source in cluster-type.json, check out the branch in the repo you want to build the cluster for, delete terraform.tfstate, configure AWS CLI to use us-east-2, and follow along from step 8 above.  The naming standard to use `default` as the region name for the first repo is just so it is easier to see which one is the upstream for the other ones, so you can make changes there that need to propagate to the other regions.
+
 
 So:
-1 system repo: aws-salt
-1 template repo: cluster-type-template
+1x system repo: aws-salt
+1x template repo: cluster-type-template
 for each distinct cluster type:
-1 cluster-<type>-default repo forked from cluster-type-template with definition of saltstate and saltclass
-n branches, one for each distinct cluster in the default region
+1x cluster-<type>-default repo forked from cluster-type-template with definition of saltstate and saltclass
+Mx repos for clusters of the same type, but in different regions (`cluster-<type>-<region>`)
+Nx branches per cluster-type and region, one for each distinct cluster
 
-For each m <region> other than the default region deploying cluster type <type>:
-m forks of cluster-<type>-default: cluster-<type>-<region>
-(it is intended for the region definition to change in these forks, along with
-perhaps the numbers of host classes in the various clusters)
-
+# Configuration files
 Repo cluster-type-template has (in root of repo)
+```
 cluster-type.json
 { "cluster_type": <cluster-type-name>,  (e.g., "redis") (override when forking template)
   "repository_source": <whatever.git>, (e.g., "git@github.com:lago-morph/cluster-type-template.git")
   "region" : <region>, (e.g., us-east-1) (overwrite when forking cluster-<type>-default)
   "private_key_file" : <filename> (e.g., ~/secrets/default-ro-key)
 }
+```
 Make sure repository_source matches the name of the new repository or you will
 be sad (this is not checked!)
+
 Don't store private_key_file in repository directory structure!
 
 cluster.json (potentially different for each branch)
+```
 { 
   "hostclass": 
     [
@@ -85,28 +91,28 @@ cluster.json (potentially different for each branch)
        ...
     ]
 }
+```
 
-===============================================================================
-2024-11-29-2 Process design
+# More instructions
+This needs to be cleaned up as it duplicates the stuff above.
 
 0. Ensure the base images have been created
 (This step only needs to be done once per account/region combination)
 
-Clone the repository aws-simple.  
-Configure the AWS CLI.  
-Change directory to aws-simple/packer.
-Run `packer init .` followed by `packer build .`
-  (This takes 10-15 minutes typically, and can run in the background while
-  doing the rest of this stuff)
-Sometimes one or another of the builds fail.  You can do just one with one of
-packer build -only=minion-build.amazon-ebs.ubuntu-20-04-amd64 .
-packer build -only=master-build.amazon-ebs.ubuntu-20-04-amd64 .
+- Clone the repository `aws-simple`.  
+- Configure the AWS CLI.  
+- Change directory to `aws-simple/packer`.
+- Run `packer init .` followed by `packer build .` (This takes 10-15 minutes typically, and can run in the background while doing the rest of this stuff)
+
+If you need to build just one of the AMIs (minion or master):
+- `packer build -only=minion-build.amazon-ebs.ubuntu-20-04-amd64 .`
+- `packer build -only=master-build.amazon-ebs.ubuntu-20-04-amd64 .`
 
 1. Create the cluster-type repository.
 
-Fork your new cluster-type repository from cluster-type-template.  Name the
-new repository "cluster-<type>-default", where <type> is a descriptive name
-(referred to as cluster_type_name below) like "redis" or something to describe 
+Fork your new cluster-type repository from `cluster-type-template`.  Name the
+new repository `cluster-<type>-default`, where `<type>` is a descriptive name
+(referred to as `cluster_type` below) like `redis` or something to describe 
 this type of cluster.
 
 Add the public key for a ssh keypair as a deploy-key in cluster-<type>-default.
@@ -145,9 +151,5 @@ Be careful about merging
 branches that each have a cluster associated with them - the terraform state
 for the cluster is stored in Git, and you don't want to accidentally overwrite
 an active cluster state file with a merge.
-
-4. Access your cluster
-If you defined an ssh-bastion, then you can (from the terraform directory) do
-make ssh-cluster
 
 It may take a while for the cluster to build.  
