@@ -790,4 +790,126 @@ jinja2 including the path just to be sure.
 E.g.,
 /root/.local/bin/jinja2
 
+Rebuilding packer images and testing end-to-end through generating node
+records.
+
+===============================================================================
+2024-12-01-2 Build salt state files in default template
+
+Going to do a bit of work on the salt master to get the actual salt system
+working.
+
+To remind myself, here's what I do when I spin up a new account:
+
+# build AWS AMIs
+cd ~/aws-salt/packer
+packer build .
+
+# upload private RO key for template repository to AWS SSM
+~/cluster-type-default/scripts/set-private-key.sh
+
+# build cluster
+cd ~/cluster-type-template/terraform
+make apply-auto-approve
+
+Followed by
+make ssh-master
+
+Then on the salt-master:
+sudo /opt/gitrepo/scripts/build_nodes.sh
+sudo -u salt salt-key -A --yes
+
+
+There is very little practical documentation on the interwebs how to use the
+master tops system with saltstack.  So I'll experiment.
+
+First of all, the shenannigans I did to install jinja2 in the packer build
+didn't seem to work.  It installed pipx, but the venv created with installing
+jinja2 I guess got removed when booting the AMI?
+
+Anyway, just do that again on salt-master
+sudo pipx install jinja2-cli --force
+sudo pipx ensurepath
+sudo /opt/gitrepo/scripts/build_nodes.sh
+
+sudo -u salt salt 'webserver-0' state.show_top
+webserver-0:
+    ----------
+
+Not very illuminating.  On the other hand, no state files defined.
+
+Even after defining classes, state files, this still gives me an empty answer.
+Nothing in the logs on salt-master or on webserver-0 indicating a problem.  I
+don't even know if the saltclass module is configured to run (I did it, but
+nothing in the log says it is using that).
+
+Going to turn on highly-verbose logging for the salt master and see what I
+see.
+
+Created a file called /etc/salt/master.d/logging, and put the following
+line in it:
+log_level_logfile: debug
+
+And restarted the salt master.
+I don't think it is including stuff in /etc/salt/master.d.  The logging level
+is not changing at all.
+
+Ayup.  If I change the log level in /etc/salt/master, I get debugging output.
+Well that explains a lot.  Fuck.
+
+Welp.  It only includes files matching '*.conf'.  Argh.
+
+Changed the name of the logging file to logging.conf, and now it is picking it
+up.
+
+Change the names of the conf files in the repo, and relink to
+/etc/salt/master.d.
+
+And, surprisingly enough, as soon as it can actually FIND my config file for
+saltclass, it works:
+
+sudo -u salt salt 'webserver-0' state.show_top
+webserver-0:
+    ----------
+	    base:
+		        - webserver
+
+And damn, turn off that debug output... heh.
+
+And, of course, now I find out that my configuration of /etc/resolv.conf is
+fragile.  It appears we are using systemd-resolved, so I need to configure it
+there.
+
+The file to change is /etc/systemd/resolved.conf.  It is hard to find this,
+where the global search domain and dns servers are set.  But this is it.
+This file should be the following:
+
+[Resolve]
+DNS=10.0.0.2
+Domains=template-main.cluster
+
+With the template-main part of that set to the cluster_name.
+
+Made this change.  
+
+(went over the below part a bunch of times until it did actually work)
+
+By the way, after cluster creation with terraform, the following should
+work (on salt-master):
+
+(Something screwy with DNS - can take 10 minutes before DNS is working)
+
+sudo /opt/gitrepo/scripts/build_nodes.sh
+sudo -u salt salt-key -A --yes
+sudo -u salt salt 'webserver-0' state.show_top
+sudo -u salt salt 'webserver-0' state.apply
+curl webserver-0
+
+(should respond with "Hello!")
+
+Ok, I have the proof of concept working.  Going to copy some of the stuff
+earlier from my design into README.md and end it for tonight.
+
+NOTE - Still seems to be an issue with DNS, where it just doesn't work for
+like 10-15 minutes, then starts working.  Debug this later.
 

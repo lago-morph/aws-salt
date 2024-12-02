@@ -6,8 +6,16 @@ resource "aws_route53_zone" "internal_dns" {
   }
 }
 
-resource "aws_route53_record" "salt_master" {
+resource "aws_route53_record" "salt" {
   name    = "salt"
+  zone_id = aws_route53_zone.internal_dns.zone_id
+  type    = "CNAME"
+  ttl     = 60
+  records = ["salt-master.${var.cluster_name}.cluster"]
+}
+
+resource "aws_route53_record" "salt_master" {
+  name    = "salt-master"
   zone_id = aws_route53_zone.internal_dns.zone_id
   type    = "A"
   ttl     = 60
