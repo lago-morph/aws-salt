@@ -741,18 +741,53 @@ have so far, but I need to take a break so I'm just recording my progress.
 
 #!/bin/bash
 
-all_instances=$(aws ec2 describe-instances --filter "Name=tag:cluster_name,Values=template-main")
+CLUSTER_NAME=$(curl http://169.254.169.254/latest/meta-data/tags/instance/cluster_name)
+
+all_instances=$(aws ec2 describe-instances --filter "Name=tag:cluster_name,Values=$CLUSTER_NAME")
 
 running_instances=$(jq -r '[.Reservations[].Instances[] | select(.State.Name == "running")]' <<< $all_instances)
 
+# puts the data in a Key/Value pair with the Key being the "Name" tag and the
+# Value being an object with private_ip, public_ip, and host_class.
 nkey=$(jq -r '[.[] |
               (.Tags | from_entries) as $tags | 
               {Key: $tags.Name, Value: ({private_ip: .PrivateIpAddress, public_ip: .PublicIpAddress, host_class: $tags.host_class})}]' <<< $running_instances)
 
-nodes=$(jq -r from_entries <<< $nkey)
-echo $nodes
+# output the data as pairs of lines, host_name, and compact 1-line
+# representation of the object with three data lines.
+# I then process two lines at a time, passing the json object into jinja2
 
-node_names=$(jq -r keys <<< $nodes)
-echo $node_names
+template=/tmp/node.jinja
+destination=/tmp
+jq -r -c '.[] | .Key, .Value' <<< $nkey | 
+while read -r host_name; read -r host_data; do 
+    echo "hostname: $host_name"; 
+	(echo $host_data | jinja2 $template) > $destination/$host_name.yml; 
+done
+
+--- template node.jinja
+environment: base
+
+classes:
+  - {{ host_class }}
+
+pillar:
+  network:
+    public_ip: {{ public_ip }}
+    private_ip: {{ private_ip }}
+---
+
+Need to install some packages on salt-master for this
+sudo apt-get install pipx python3-venv -y
+pipx install jinja2-cli
+pipx ensurepath
+. .bashrc
+
+Added this to the install-extras.sh script that is run as part of the packer
+build.  Root will have jinja2 on its path, but maybe from the script call
+jinja2 including the path just to be sure.  
+
+E.g.,
+/root/.local/bin/jinja2
 
 
