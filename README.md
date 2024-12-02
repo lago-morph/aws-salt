@@ -1,26 +1,47 @@
 # Overview
-What I want to do here is come up with a way to leverage packer, terraform, and salt to built infrastructure on AWS in a professional and robust way.
+What I want to do here is come up with a way to leverage packer, terraform, and salt to build infrastructure on AWS.
 
 # Repositories
-There is one repo, aws-salt, that contains the terraform module and helper scripts (e.g., packer build).
+The repository `aws-salt` (this repository) contains the terraform module and helper scripts (e.g., packer build).
 
-There is an ultimate upstream repository [cluster-type-template](https://github.com/lago-morph/cluster-type-template) from which cluster-type repositories should fork.
+There is an ultimate upstream repository [cluster-type-template](https://github.com/lago-morph/cluster-type-template) from which cluster-type repositories should be forked.
 
-For each cluster-type, there is one upstream repository forked from repo cluster-type-template, which targets the region you are doing development in for that type of cluster.  For additional regions, you will fork the cluster-type repo.
+For each cluster-type, there is one upstream repository forked from repo `cluster-type-template`, which targets the region you are doing development in for that type of cluster.  For additional regions, you will fork the cluster-type repo.
 
 ## Repository diagram
 
-aws-salt
+```mermaid
+  flowchart LR
+  classDef greenClass fill:#bfb
 
-cluster-type-template
-   ||
- (fork)
-   \/
-cluster-redis-default == (fork) ==> cluster-type-redis-us-east-2
-   ||
-(branch)
-   \/
-cluster-redis branch-n
+  aws_salt[("`aws_salt`")]
+  cluster_type_template[("cluster_type_template")]
+
+  subgraph cluster_type_redis["cluster_type = redis"]
+    cluster_redis_default[("`cluster_redis_default
+(us-east-1)`")] -- fork --> cluster_redis_us-east-2[("cluster_redis_us-east-2")]
+  end
+  
+  cluster_type_template -- fork --> cluster_redis_default
+  
+  subgraph us-east-1["AWS us-east-1"]
+    redis_prod["cluster redis-prod"]:::greenClass
+    redis_staging["cluster redis-staging"]:::greenClass
+    redis_dev["cluster redis-dev"]:::greenClass
+  end
+  cluster_redis_default -- branch prod --> redis_prod
+  cluster_redis_default -- branch staging --> redis_staging
+  cluster_redis_default -- branch dev --> redis_dev
+  
+  subgraph us-east-2["AWS us-east-2"]
+    redis_prod2["cluster redis-prod"]:::greenClass
+    redis_staging2["cluster redis-staging"]:::greenClass
+    redis_dev2["cluster redis-dev"]:::greenClass
+  end
+  cluster_redis_us-east-2 -- branch prod --> redis_prod2
+  cluster_redis_us-east-2 -- branch staging --> redis_staging2
+  cluster_redis_us-east-2 -- branch dev --> redis_dev2
+```
 
 So a "cluster" is a cluster-type repository (potentially forked with the
 region redefined), plus a branch of that repository.  There cannot be multiple
