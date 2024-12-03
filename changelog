@@ -913,3 +913,65 @@ earlier from my design into README.md and end it for tonight.
 NOTE - Still seems to be an issue with DNS, where it just doesn't work for
 like 10-15 minutes, then starts working.  Debug this later.
 
+===============================================================================
+2024-12-02 debug DNS issue
+
+I created a DNS hosted zone manually, launched a couple of instances from the
+AWS web console.  Once I updated /etc/systemd/resolved.conf with the DNS
+server and the domain, it started using the right addresses for pings.  None
+of the same behavior I saw last night.  Maybe it is the cname?
+
+The CNAME only worked after I put in the FQDN as the alias.  Need to check to
+make sure I'm doing the same.
+
+Now one difference is I'm using "test.local".  Maybe it treats ".local"
+differently?
+
+Create new zone "test.cluster" and see how that works.
+
+It all works flawlessly how I would think it should when I create it through
+the AWS console.
+
+I wonder if it creates endpoints or something automatically when I do it
+through the console, and that doesn't happen when I do it through Terraform?
+
+The only thing I can see is an internet resolver rule associated with my
+default VPC.  Let's see if that maybe isn't done when I create a VPC and
+private hosted zone?
+
+Ok, tried again.
+
+ubuntu@salt-master:~$ nslookup webserver-0.template-main.cluster 10.0.0.2
+Server:         10.0.0.2
+Address:        10.0.0.2#53
+
+Non-authoritative answer:
+Name:   webserver-0.template-main.cluster
+Address: 10.0.66.3
+** server can't find webserver-0.template-main.cluster: NXDOMAIN
+
+In the Route 53 window, I have a record for:
+webserver-0.template-main.cluster
+
+Is my security group doing a udp vs. tcp thing for outgoing requests?
+
+Ok, its been a while, now it works
+ubuntu@salt-master:~$ nslookup webserver-0.template-main.cluster 10.0.0.2
+Server:         10.0.0.2
+Address:        10.0.0.2#53
+
+Non-authoritative answer:
+Name:   webserver-0.template-main.cluster
+Address: 10.0.66.3
+23:57:53 UTC 2024
+
+System booted around 23:51.  So just waiting 6 minutes??
+
+I don't even know what to do.
+
+I guess next time I use nslookup, then when I'm in interactive mode:
+set debug
+server 10.0.0.2
+
+Then query.  Then I get debugging information.
+
