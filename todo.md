@@ -1,9 +1,12 @@
 # Highest priority (bugs or major flaws)
 - [ ] diagnose DNS issue on startup
-- [ ] Switch to S3 state backend to remove issue with git merging overwriting terraform state
-- [ ] Provide option to build a NAT gateway (otherwise software installs and updates won't work for hosts on private subnets).
-- [ ] Modify security group so that only cluster members can request to be minions to salt-master
-- [ ] pass back out vpc, subnets, whatever is needed to use vpc after cluster created
+  - This just seems to "go away" if I wait 5 minutes.  I'm confuzzled.
+- [X] Switch to S3 state backend to remove issue with git merging overwriting terraform state (though this just leads to overwriting the backend.tf file...)
+  - Solution in https://medium.com/@porteneuve/how-to-make-git-preserve-specific-files-while-merging-18c92343826b - use git attributes
+  - Will set up attributes so files "backend.tf" and "terraform.tfstate" do not get merged
+- [X] Provide option to build a NAT gateway (otherwise software installs and updates won't work for hosts on private subnets).
+- [X] Modify security group so that only cluster members can request to be minions to salt-master
+- [X] pass back out vpc, subnets, whatever is needed to use vpc after cluster created
 - [ ] Verify ability to fork template repo, then pull down updates later
 
 # High priority (medium flaws or unimplemented basic features)

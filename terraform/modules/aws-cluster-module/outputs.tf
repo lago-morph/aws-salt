@@ -15,8 +15,21 @@ output "hostmap" {
 }
 
 locals {
-  public_ip = { for hostname, v in tomap(local.cluster_instances) : "${hostname}" => aws_instance.host[hostname].public_ip }
+  public_ips = { for hostname, v in tomap(local.cluster_instances) : "${hostname}" => aws_instance.host[hostname].public_ip }
 }
-output "public_ip" {
-  value = local.public_ip
+output "public_ips" {
+  value = local.public_ips
 }
+
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+output "private_subnet" {
+  value = module.vpc.private_subnets[0]
+}
+
+output "public_subnet" {
+  value = module.vpc.public_subnets[0]
+}
+

@@ -1,3 +1,9 @@
+variable "enable_nat_gateway" {
+  description = "Enable a NAT gateway for private subnet"
+  type        = bool
+  default     = false
+}
+
 variable "repository_source" {
   description = ".git file with host specifier"
   type        = string
