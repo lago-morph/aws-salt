@@ -975,3 +975,115 @@ server 10.0.0.2
 
 Then query.  Then I get debugging information.
 
+===============================================================================
+2024-12-04 "Design" for sample clusters
+
+I figured I should spend at least a little time on the high level design for
+the sample clusters I want to implement in both this project and for
+aws-ansible (similar project, but agentless, with Ansible).
+
+First, for the aws-salt project, I'm not going to worry about a bastion host.
+I'll just make salt-master the ssh gateway by default.  In aws-ansible, I'll
+leave a bastion as an option, because there is a use case where you don't need
+any outside access for that project.
+
+1. Basic, "hello world!"
+   Web server(s) that serve "Hello world!" on port 80.  The web page can be
+   optionally stored in an S3 bucket.  You can make an arbitrarily complex 
+   website, and as long as it is static and sits in an S3 bucket, the web 
+   server(s) will serve it up.
+2. Load balanced web servers
+   Same as #1, but with an nginx load balancer in front.
+3. Compute cluster
+   A bunch of identical machines with slurm to do cluster processing.
+   Nothing complex, a dedicated controller, n worker nodes, 1 partition.
+   https://slurm.schedmd.com/quickstart.html
+
+All of them need iptables firewall set up based on settings in the host
+classes.
+
+===============================================================================
+2024-12-04-2 knocking off highest priority items from todo.md
+
+Added input variable to module to allow creation of NAT gateway.  In general I'll leave that off for now because it dramatically increases the amount of time for terraform to provision the cluster.
+
+Output vpc and subnet information from module to allow calling configuration
+to use that information if desired (e.g., to create more stuff in that VPC).
+
+Modified the security group so that access to the salt ports is only allowed
+from hosts in the cluster.  This means I can just accept any minions that are
+trying to register, because only the hosts in the cluster can request to be a
+minion.
+
+Added the ability to use a remote backend (added target to Makefile).
+Realized that this does not fix the problem of merges between branches
+overwriting state files - it just changes it to overwriting the backend.tf
+file that says where the proper state file is stored.
+
+But I found a really nice solution to this at this medium post:
+https://medium.com/@porteneuve/how-to-make-git-preserve-specific-files-while-merging-18c92343826b
+
+In summary, you can set attributes on files in git using the gitattributes
+file.  One of those attributes is what "merge driver" you use when merging the
+file.  You can configure a custom merge driver (the true command) that simply
+does nothing for a given file.  That will make merges effectively ignore
+the file.  This adds some hidden behavior that could be confusing, so I'll
+have to document it a little more obviously with a readme file or something.
+
+I'm going to test this in a throwaway repo first.  I don't need to create a
+github repo, just a local one.
+
+mkdir testrepo
+cd testrepo
+
+git init
+git commit --allow-empty -m "initial commit"
+
+# This modifies the config for only this repo, in testrepo/.git/config
+git config merge.ours.driver true
+
+echo 'terraform.tfstate merge=ours' > .gitattributes
+git add .gitattributes
+git commit -m 'preserve terraform.tfstate during merges'
+
+# create initial files, one that should be preserved, one merged normally
+echo 'first version' > demo-shared
+git add demo-shared
+git commit -m 'a file that will be merged normally'
+
+echo 'preserve this in master' > terraform.tfstate
+git add terraform.tfstate
+git commit -m 'this should be preserved'
+
+# branch and change files.
+git checkout -b v2
+echo 'second version' > demo-shared
+echo 'preserve this in v2' > terraform.tfstate
+git add demo-shared terraform.tfstate
+git commit -m 'changes in v2'
+
+# Now when we merge, our config and the entry in .gitattributes means
+# demo-shared should merge normally, and terraform.tfstate will not
+
+Except it didn't work.
+
+It turns out this strategy only works if *both* files have been changed.  In
+our particular case, that means that if you HAVE a terraform.tfstate, then
+create a new branch, when you merge back you will overwrite.  But if the two
+are created independently, they won't.  This is the type of behavior that
+makes people go mad.
+
+I think I need to use a terraform workspace for this.
+
+Was relatively easy - just added to all the terraform-related targets in the
+Makefile a prerequisite that changes (or creates if necessary) to a workspace
+named after the branch.
+
+Ah, running into issues where duplicate resources created.  For some things
+need to make sure the cluster name is pre or appended to the name.
+
+Fixed these up, now good to go!  Can switch back and forth between branches
+without clobbering each other on merges.
+
+
+

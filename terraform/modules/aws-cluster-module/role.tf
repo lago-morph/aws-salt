@@ -89,7 +89,7 @@ resource "aws_iam_role_policy_attachment" "salt_master_EC2_ro" {
 }
 
 resource "aws_iam_instance_profile" "salt_master" {
-  name = "salt_master"
+  name = "salt_master_${var.cluster_name}"
   role = aws_iam_role.salt_master_role.name
 }
 
