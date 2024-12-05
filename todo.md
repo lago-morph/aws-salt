@@ -10,7 +10,7 @@
 - [ ] Verify ability to fork template repo, then pull down updates later
 
 # High priority (medium flaws or unimplemented basic features)
-- [ ] Update README.md to include steps to generate node list, see the master top data, and apply state
+- [X] Update README.md to include steps to generate node list, see the master top data, and apply state
 - [ ] Implement ability to taint hosts in Makefile
 
 # Medium priority (needed for someone else to want use)

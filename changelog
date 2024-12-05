@@ -1085,5 +1085,71 @@ need to make sure the cluster name is pre or appended to the name.
 Fixed these up, now good to go!  Can switch back and forth between branches
 without clobbering each other on merges.
 
+===============================================================================
+2024-12-04-3 Try to get a useful configuration done with saltclass
 
+For this one I need to configure:
+- NGINX in load balancer mode, need to grab the private IPs of the web servers
+to fill out the servers section
+- Default web pages for each web server
+- Some attribute in the web server that the load balancer searches for in a
+pillar to figure out what hosts to load balance for.
+
+Looking at how I get data from the nodes definitions.
+sudo -u salt salt '*' pillar.refresh_pillar
+sudo -u salt salt '*' pillar.data
+
+Everyone has no data.  I guess I need to specify a pillar?
+
+Turns out I never configured the saltclass pillar.
+So I created a new config file in aws_salt/salt/master.d/saltclass_pillar.conf
+that just had:
+---
+ext_pillar:
+  - saltclass:
+      - path: /srv/saltclass
+---
+
+Restarted salt-master, and now I'm getting something.  But I can't seem to
+query it.
+
+sudo -u salt salt '*' pillar.refresh_pillar
+udo -u salt salt 'webserver-0' pillar.items
+
+webserver-0:
+    ----------
+    __saltclass__:
+        ----------
+        classes:
+            - webserver
+        environment:
+            base
+        nodename:
+            webserver-0
+        states:
+            - webserver
+
+This gives me essentially the same thing, without the __saltclass__: header
+sudo -u salt salt 'webserver-0' pillar.get __saltclass__
+
+But I can't figure out syntax of digging deeper...  There are supposed to be
+pillars defined with IP addresses for the hosts.  Maybe that is yet another
+ext pillar?
+
+I am super frustrated with this.  I can find no working examples of someone
+using saltclass on the interwebs.  I think this is a super-niche thing that
+nobody uses.
+
+On one hand it is a nice way to make the mapping between nodes and states
+flexible.  On the other hand, the extra data that is defined as part of a node
+does not seem to be accessible from the pillar mechanism (that I can figure
+out at least).
+
+I could continue using saltclass, and just save the node data somewhere else
+(e.g., compose a "real" pillar in /srv/pillar).  There is also an external
+pillar called ec2_pillar that grabs tags from instances directly.
+
+I think what I'm going to do is just use saltclass for the mapping of hosts
+<-> states.  That seems to work.  And put any other data I need to keep
+elsewhere.
 
